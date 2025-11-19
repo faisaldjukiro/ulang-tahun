@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="id">
+<head>
+   <title>Selamat Ulang Tahun</title>
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+         background: black;
+         overflow: hidden;
+         height: 100vh;
+         width: 100vw;
+         touch-action: manipulation;
+         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      }
+
+      #slide-container {
+         position: absolute;
+         top: 18%;
+         width: 100%;
+         display: flex;
+         justify-content: center;
+         padding: 0 20px;
+         text-align: center;
+      }
+
+      .teks-anim {
+         font-size: clamp(20px, 4vw, 32px);
+         color: white;
+         max-width: 850px;
+         line-height: 1.7;
+         opacity: 0;
+         transform: translateY(10px);
+         transition:
+            opacity 1.3s ease,
+            transform 1.3s ease;
+      }
+
+      .teks-anim.show {
+         opacity: 1;
+         transform: translateY(0);
+      }
+
+      canvas {
+         position: absolute;
+         top: 0; left: 0;
+         width: 100%; height: 100%;
+         z-index: -1;
+      }
+   </style>
+</head>
+
+<body>
+
+   <audio id="background-music" src="./music/monokrom.mp3" preload="auto" loop></audio>
+
+   <div id="slide-container">
+      <div id="teks" class="teks-anim"></div>
+   </div>
+
+   <canvas id="canvas"></canvas>
+
+   <script>
+      function enableAutoPlay() {
+         const music = document.getElementById('background-music');
+         music.volume = 0.45;
+         music.play().catch(() => {});
+      }
+      document.addEventListener('mousemove', enableAutoPlay, { once: true });
+      document.addEventListener('touchstart', enableAutoPlay, { once: true });
+      document.addEventListener('scroll', enableAutoPlay, { once: true });
+
+
+      const text = "Selamat ulang tahun, Noviyanti Ahmad. Hari ini genap 32 tahun.";
+
+      const teksBox = document.getElementById("teks");
+
+      function typeSmooth(element, text, speed = 200) {
+         element.innerHTML = "";
+         let i = 0;
+
+         function ketik() {
+            if (i < text.length) {
+               element.innerHTML += text.charAt(i);
+               i++;
+               const delay = speed + Math.random() * 35; 
+               setTimeout(ketik, delay);
+            }
+         }
+         ketik();
+      }
+
+      setTimeout(() => {
+         typeSmooth(teksBox, text);
+         teksBox.classList.add("show");
+      }, 800);
+
+
+      let canvas = document.getElementById('canvas');
+      let ctx = canvas.getContext('2d');
+
+      function resizeCanvas() {
+         canvas.width = window.innerWidth;
+         canvas.height = window.innerHeight;
+      }
+      resizeCanvas();
+      window.addEventListener('resize', resizeCanvas);
+
+      const rnd = Math.random;
+      const rndNum = num => rnd() * num + 1;
+
+      class Vector {
+         constructor(x, y) { this.x = x; this.y = y; }
+         add(v) { this.x += v.x; this.y += v.y; }
+      }
+
+      class Particle {
+         constructor(pos, vel) {
+            this.pos = new Vector(pos.x, pos.y);
+            this.vel = vel;
+            this.finish = false;
+            this.start = 0;
+         }
+
+         update(time) {
+            let ts = time - this.start;
+            if (ts > 500) this.finish = true;
+
+            if (!this.finish) {
+               this.pos.add(this.vel);
+               this.vel.y += gravity;
+            }
+         }
+
+         draw() {
+            if (!this.finish) drawDot(this.pos.x, this.pos.y, 1);
+         }
+      }
+
+      class Firework {
+         constructor(x, y) {
+            this.pos = new Vector(x, y);
+            this.vel = new Vector(0, -rndNum(10) - 3);
+            this.color = `hsl(${rndNum(360)}, 100%, 50%)`;
+            this.size = 3;
+            this.finish = false;
+            this.start = 0;
+            this.exParticles = [];
+            this.exPLen = 90;
+            this.rootShow = true;
+         }
+
+         update(time) {
+            if (this.finish) return;
+
+            this.rootShow = this.vel.y < 0;
+
+            if (this.rootShow) {
+               this.pos.add(this.vel);
+               this.vel.y += gravity;
+            } else {
+               if (this.exParticles.length === 0) {
+                  for (let i = 0; i < this.exPLen; i++) {
+                     let p = new Particle(
+                        this.pos,
+                        new Vector(-rndNum(8) + 4, -rndNum(8) + 4)
+                     );
+                     p.start = time;
+                     this.exParticles.push(p);
+                  }
+               }
+
+               let done = 0;
+               for (let p of this.exParticles) {
+                  p.update(time);
+                  if (p.finish) done++;
+               }
+               if (done === this.exPLen) this.finish = true;
+            }
+         }
+
+         draw() {
+            ctx.fillStyle = this.color;
+            if (this.rootShow) {
+               drawDot(this.pos.x, this.pos.y, this.size);
+            } else {
+               this.exParticles.forEach(p => p.draw());
+            }
+         }
+      }
+
+      function drawDot(x, y, size) {
+         ctx.beginPath();
+         ctx.arc(x, y, size, 0, 2 * Math.PI);
+         ctx.fill();
+      }
+
+      let fireworks = [];
+      const gravity = 0.18;
+
+      function init() {
+         let n = Math.min(20, Math.floor(window.innerWidth / 50));
+         fireworks = [];
+         for (let i = 0; i < n; i++) {
+            let fw = new Firework(rndNum(canvas.width), canvas.height);
+            fw.start = performance.now();
+            fireworks.push(fw);
+         }
+      }
+
+      function animate(time) {
+         ctx.fillStyle = 'rgba(0,0,0,0.25)';
+         ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+         fireworks.forEach((f, i) => {
+            if (f.finish) {
+               fireworks[i] = new Firework(rndNum(canvas.width), canvas.height);
+               fireworks[i].start = time;
+            }
+            f.update(time);
+            f.draw();
+         });
+
+         requestAnimationFrame(animate);
+      }
+
+      window.onload = () => {
+         init();
+         animate();
+      };
+   </script>
+
+</body>
+</html>
